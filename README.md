@@ -49,7 +49,6 @@ Initializes a bit manipulator with a specified bit width. Internally, it maintai
 | `visualize()`    | Returns a formatted binary string of the pattern                            |
 
 ---
----
 
 ## 📊 Example
 
