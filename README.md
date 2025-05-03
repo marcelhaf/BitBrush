@@ -49,11 +49,6 @@ Initializes a bit manipulator with a specified bit width. Internally, it maintai
 | `visualize()`    | Returns a formatted binary string of the pattern                            |
 
 ---
-
-## 🔬 Performance
-
-The `mirror_mask()` function is optimized with a precomputed 8-bit reversal lookup table. This makes it significantly faster than traditional bit-by-bit reversal, especially for high bit-widths like 64 or 128 bits.
-
 ---
 
 ## 📊 Example
@@ -76,3 +71,4 @@ bitbrush/
 ├── bitbrush_demo.py
 └── bitbrush_demo.ipynb
 ```
+---
