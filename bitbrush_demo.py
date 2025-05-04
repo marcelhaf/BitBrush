@@ -10,7 +10,6 @@ and visualizes their execution time using bar plots.
 import time
 import matplotlib.pyplot as plt
 from bitbrush import BitBrush
-import numpy as np
 
 def benchmark_operation(name: str, func, *args) -> float:
     """
