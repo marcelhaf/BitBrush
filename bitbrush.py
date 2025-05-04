@@ -1,33 +1,40 @@
 """
 bitbrush.py
 
-A novel, high-performance and readable bit manipulation toolkit.
+A novel, high-performance and readable bit manipulation toolkit with optional NumPy acceleration.
 
 This module introduces a unique approach to "bit brushing" —
-a conceptual and practical code to systematically explore, test,
-and manipulate bits using expressive primitives.
+conceptual and practical code to systematically explore, test,
+and manipulate bits using expressive primitives. It now supports
+both pure-Python and NumPy-backed operations for large-scale
+bit pattern generation.
 """
 
-from typing import Generator
+import numpy as np
+from typing import Generator, Union, Literal
 
 class BitBrush:
     """
     BitBrush: A high-performance utility class for bit-level pattern manipulation.
 
     This class provides generators and utilities for controlled bit pattern generation,
-    transformation, and visualization. The operations include sweeps, toggles,
-    mirrors, and analytical functions such as bit counting.
+    transformation, and visualization. Operations include sweeps, toggles, mirrors,
+    and analytical functions such as bit counting. You can choose a pure-Python
+    backend or a NumPy-backed backend for vectorized performance.
     """
 
-    def __init__(self, width: int = 32):
+    def __init__(self, width: int = 32, backend: Literal['python', 'numpy'] = 'python'):
         """
-        Initializes the BitBrush instance with a given bit width.
+        Initializes the BitBrush instance with a given bit width and backend.
 
         Args:
             width (int): Number of bits to operate on. Default is 32.
+            backend (str): 'python' for generator-based implementation, or 'numpy'
+                           for vectorized NumPy arrays. Default is 'python'.
         """
         self.width = width
         self.mask = (1 << width) - 1
+        self.backend = backend
         self._mirror_lut = self._build_mirror_lut()
 
     def _build_mirror_lut(self) -> list[int]:
@@ -47,36 +54,51 @@ class BitBrush:
             lut[i] = rev
         return lut
 
-    def sweep_ones(self) -> Generator[int, None, None]:
+    def sweep_ones(self) -> Union[Generator[int, None, None], np.ndarray]:
         """
-        Generator that yields numbers with a sweeping '1' bit through the width.
+        Generates numbers with a single '1' bit sweeping from LSB to MSB.
 
-        Yields:
-            int: An integer with a single bit set, sweeping from LSB to MSB.
+        Returns:
+            Generator[int] or np.ndarray: Sweeping bit patterns.
         """
-        for i in range(self.width):
-            yield 1 << i
+        if self.backend == 'numpy':
+            # Vectorized left-shift: produces array [1<<0, 1<<1, ..., 1<<(width-1)]
+            return np.left_shift(np.uint64(1), np.arange(self.width, dtype=np.uint64))
+        # Pure-Python generator
+        return (1 << i for i in range(self.width))
 
-    def sweep_zeros(self) -> Generator[int, None, None]:
+    def sweep_zeros(self) -> Union[Generator[int, None, None], np.ndarray]:
         """
-        Generator that yields numbers with all bits set except for a sweeping '0'.
+        Generates numbers with all bits set except for a sweeping '0'.
 
-        Yields:
-            int: An integer with one bit cleared, sweeping from LSB to MSB.
+        Returns:
+            Generator[int] or np.ndarray: Bit patterns with a sweeping '0'.
         """
-        for i in range(self.width):
-            yield self.mask ^ (1 << i)
+        if self.backend == 'numpy':
+            # mask ^ (1<<i) for all i
+            return self.mask ^ np.left_shift(np.uint64(1), np.arange(self.width, dtype=np.uint64))
+        return (self.mask ^ (1 << i) for i in range(self.width))
 
-    def toggle_sparse(self, step: int = 3) -> Generator[int, None, None]:
+    def toggle_sparse(self, step: int = 3) -> Union[Generator[int, None, None], np.ndarray]:
         """
-        Generator that yields integers with bits toggled sparsely at the given step.
+        Generates integers with sparsely toggled bits using a given step.
 
         Args:
-            step (int): The distance between toggled bits. Default is 3.
+            step (int): Step size between toggled bits. Default is 3.
 
-        Yields:
-            int: An integer with sparsely distributed 1s.
+        Returns:
+            Generator[int] or np.ndarray: Bit patterns with sparsely set bits.
         """
+        if self.backend == 'numpy':
+            # Build array of indices to set
+            indices = np.arange(0, self.width, step, dtype=np.uint64)
+            # Initialize an array to hold cumulative OR results
+            result = np.zeros(indices.shape, dtype=np.uint64)
+            for idx in range(indices.size):
+                bit = np.uint64(1) << indices[idx]
+                result[idx] = bit if idx == 0 else result[idx-1] | bit
+            return result
+        # Python generator fallback
         val = 0
         for i in range(0, self.width, step):
             val |= 1 << i
@@ -102,15 +124,24 @@ class BitBrush:
             mirrored_byte = self._mirror_lut[byte]
             shift = (bytes_needed - 1 - i) * 8
             result |= mirrored_byte << shift
+        # Align down to width
         return result >> (bytes_needed * 8 - self.width)
 
-    def scan_patterns(self) -> Generator[int, None, None]:
+    def scan_patterns(self) -> Union[Generator[int, None, None], np.ndarray]:
         """
-        Generator that yields symmetric bit patterns growing from the center outward.
+        Generates symmetric bit patterns growing from the center outward.
 
-        Yields:
-            int: Bit patterns sweeping outward and inward from the center.
+        Returns:
+            Generator[int] or np.ndarray: Patterns sweeping from center to edges.
         """
+        if self.backend == 'numpy':
+            center = self.width // 2
+            radii = np.arange(center + 1, dtype=np.int64)
+            left = np.left_shift(np.uint64(1), center - radii)
+            right = np.where(center + radii < self.width,
+                             np.left_shift(np.uint64(1), center + radii),
+                             np.uint64(0))
+            return left | right
         center = self.width // 2
         for radius in range(center + 1):
             left = 1 << (center - radius)
