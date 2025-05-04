@@ -8,7 +8,7 @@ and compares pure-Python vs NumPy backends.
 import time
 import matplotlib.pyplot as plt
 from bitbrush import BitBrush
-
+import numpy as np
 
 def benchmark_operation(func, *args) -> float:
     """
